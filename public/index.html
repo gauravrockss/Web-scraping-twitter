@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Selenium Script Runner</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+                line-height: 1.6;
+            }
+            button {
+                padding: 10px 20px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            button:hover {
+                background-color: #0056b3;
+            }
+            .results {
+                margin-top: 20px;
+            }
+            pre {
+                background-color: #f4f4f4;
+                padding: 10px;
+                border-radius: 5px;
+                overflow-x: auto;
+            }
+            .loading {
+                color: #f39c12;
+                font-style: italic;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Selenium Script Runner</h1>
+        <button id="run-script">Click here to run the script</button>
+
+        <div id="output" class="results"></div>
+
+        <script>
+            const runScriptButton = document.getElementById('run-script');
+            const outputDiv = document.getElementById('output');
+
+            // Function to fetch and display all trends
+            const fetchAllTrends = async () => {
+                // Check if there is already a loading message
+                const existingLoadingMessage = document.querySelector('.loading');
+                if (existingLoadingMessage) {
+                    existingLoadingMessage.remove(); // Remove previous loading message if it exists
+                }
+
+                // Add the loading indicator at the bottom of the data
+                const loadingIndicator = document.createElement('p');
+                loadingIndicator.classList.add('loading');
+                loadingIndicator.innerText = 'Running the Selenium script, please wait...';
+                outputDiv.appendChild(loadingIndicator);
+
+                try {
+                    // Fetch the stored trends from the database
+                    const response = await fetch('http://localhost:8001/api/trends');
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch the trends. Please try again later.');
+                    }
+
+                    const data = await response.json();
+                    const trends = data.data; // Assuming the response contains a `data` array
+
+                    if (trends.length === 0) {
+                        outputDiv.innerHTML = '<p>No trends available at the moment.</p>';
+                        // Revert to the "Run Script" button if no trends are found
+                        showRunScriptButton();
+                        return;
+                    }
+
+                    // Loop through each trend and display it
+                    let trendHTML = trends
+                        .map(trend => {
+                            const formattedDate = new Date(trend.timestamp).toLocaleString(); // Format the timestamp
+
+                            // Display each trend along with the IP address and timestamp
+                            return ` 
+                                <div>
+                                    <h3>Trends as of ${formattedDate}</h3>
+                                    <p><strong>IP Address:</strong> ${trend.ipAddress}</p>
+                                    <ul>
+                                        ${trend.topics.map(topic => `<li>${topic}</li>`).join('')}
+                                    </ul>
+                                    <h4>JSON Extract:</h4>
+                                    <pre>${JSON.stringify(trend, null, 2)}</pre>
+                                </div>
+                            `;
+                        })
+                        .join('');
+
+                    // Clear the "Loading" text and show the fetched data
+                    outputDiv.innerHTML = trendHTML;
+
+                    // Replace the button with "Run Query Again"
+                    showRunQueryButton();
+                } catch (error) {
+                    outputDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                    showRunScriptButton(); // Re-enable the "Run Script" button in case of an error
+                }
+            };
+
+            // Function to handle the fetching and displaying of data from the Selenium script
+            const fetchTrendsData = async () => {
+                runScriptButton.disabled = true; // Disable the button when fetching data
+                runScriptButton.innerText = 'Running...'; // Change the button text to show it's in progress
+
+                // Show the loading indicator below the data (keeping previous data visible)
+                const loadingIndicator = document.createElement('p');
+                loadingIndicator.classList.add('loading');
+                loadingIndicator.innerText = 'Running the Selenium script, please wait...';
+                outputDiv.appendChild(loadingIndicator);
+
+                try {
+                    // Fetch the data from the scraper endpoint and store it in the database
+                    const response = await fetch('http://localhost:8001/api/scrape-trends');
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch the results. Please try again later.');
+                    }
+
+                    const data = await response.json();
+                    runScriptButton.innerText = 'Click here to run the script'; // Reset the button text
+
+                    // After saving the trends, fetch them from the database
+                    fetchAllTrends();
+                } catch (error) {
+                    outputDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                    runScriptButton.disabled = false; // Re-enable the button in case of an error
+                    runScriptButton.innerText = 'Click here to run the script'; // Reset the button text
+                }
+            };
+
+            // Function to show the "Run Script" button
+            const showRunScriptButton = () => {
+                runScriptButton.style.display = 'inline-block';
+                runScriptButton.innerText = 'Click here to run the script';
+            };
+
+            // Function to show the "Run Query Again" button
+            const showRunQueryButton = () => {
+                // Hide the "Run Script" button and show the "Run Query Again" button
+                runScriptButton.style.display = 'none';
+                const newFetchButton = document.createElement('button');
+                newFetchButton.textContent = 'Click here to run the query again';
+                newFetchButton.addEventListener('click', fetchTrendsData);
+
+                outputDiv.appendChild(newFetchButton);
+            };
+
+            // Initial fetch of all trends when the page loads
+            window.onload = () => {
+                fetchAllTrends(); // Fetch all trends on page load
+            };
+
+            // Initial button click to run the script
+            runScriptButton.addEventListener('click', () => {
+                fetchTrendsData(); // Fetch data when the button is clicked
+            });
+        </script>
+    </body>
+</html>
